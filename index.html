@@ -3,191 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Perintah Lembur</title>
+    <title>Lokasi Saya</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #eef1f6; }
-        .container { max-width: 900px; margin: 30px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); }
-        h1 { text-align: center; color: #004085; margin-bottom: 30px; }
-        
-        /* Form Styling */
-        #form-pengajuan { 
-            display: grid; 
-            grid-template-columns: repeat(5, 1fr); /* Disesuaikan untuk 4 input + 1 button */
-            gap: 15px; 
-            margin-bottom: 40px; 
-            padding: 20px;
-            border: 1px solid #cce5ff;
-            border-radius: 8px;
-            background-color: #f8f9fa;
-        }
-        #form-pengajuan input, #form-pengajuan button { 
-            padding: 12px; 
-            border: 1px solid #ced4da; 
-            border-radius: 4px; 
-        }
-        #form-pengajuan button { 
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f4f7f9; }
+        .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); text-align: center; }
+        h1 { color: #2c3e50; }
+        #lokasi-btn { 
+            padding: 15px 30px; 
+            font-size: 18px; 
             background-color: #007bff; 
             color: white; 
             border: none; 
+            border-radius: 8px; 
             cursor: pointer; 
-            font-weight: bold;
+            margin-top: 20px; 
             transition: background-color 0.3s;
         }
-        #form-pengajuan button:hover { background-color: #0056b3; }
-        
-        /* Table Styling */
-        #tabel-lembur { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        #tabel-lembur th, #tabel-lembur td { 
-            border: 1px solid #dee2e6; 
-            padding: 12px; 
-            text-align: left; 
-        }
-        #tabel-lembur th { 
-            background-color: #004085; 
-            color: white; 
-            font-weight: 600;
-        }
-        
-        /* Status Colors */
-        .status-pending { background-color: #fff3cd; color: #856404; padding: 5px 10px; border-radius: 3px; font-weight: bold; }
-        .status-approved { background-color: #d4edda; color: #155724; padding: 5px 10px; border-radius: 3px; font-weight: bold; }
-        .delete-btn { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
-
-        .api-error { background-color: #f8d7da; border-left: 5px solid #dc3545; padding: 10px; margin-bottom: 20px; color: #721c24; display: none; }
+        #lokasi-btn:hover { background-color: #0056b3; }
+        #hasil { margin-top: 25px; font-size: 1.1em; color: #34495e; text-align: left; border-top: 1px solid #eee; padding-top: 20px; }
+        .error { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🗓️ Sistem Pengajuan Lembur Karyawan</h1>
-        
-        <div id="api-status" class="api-error">Gagal terhubung ke API Server. Cek konsol.</div>
-
-        <h2>Ajukan Lembur Baru</h2>
-        <form id="form-pengajuan">
-            <input type="text" id="name" placeholder="Nama Karyawan" required>
-            <input type="date" id="date" required>
-            <input type="time" id="startTime" placeholder="Jam Mulai (contoh: 18:00)" required>
-            <input type="time" id="endTime" placeholder="Jam Selesai (contoh: 20:00)" required>
-            <button type="submit">Ajukan Lembur</button>
-        </form>
-
-        <h2>Daftar Pengajuan Lembur</h2>
-        
-        <table id="tabel-lembur">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nama Karyawan</th>
-                    <th>Tanggal</th>
-                    <th>Mulai</th>
-                    <th>Selesai</th>
-                    <th>Durasi (Jam)</th>
-                    <th>Status</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody id="data-lembur">
-                </tbody>
-        </table>
+        <h1>🔍 Aplikasi Lokasi Saya</h1>
+        <button id="lokasi-btn">Tampilkan Lokasi Saya</button>
+        <div id="hasil">
+            Klik tombol di atas untuk melihat koordinat lokasi Anda.
+        </div>
     </div>
 
     <script>
-        // *** GANTI DENGAN URL API RAILWAY ANDA SETELAH DI DEPLOY ***
-        const API_BASE_URL = 'http://localhost:5000'; // UBAH INI!
-        // Contoh: const API_BASE_URL = 'https://overtime-api-xxxx.up.railway.app';
-        // ************************************************************
+        document.getElementById('lokasi-btn').addEventListener('click', getLocation);
 
-        const API_URL = `${API_BASE_URL}/api/overtime`;
-        const formPengajuan = document.getElementById('form-pengajuan');
-        const dataLemburBody = document.getElementById('data-lembur');
-        const apiStatus = document.getElementById('api-status');
-
-        // --- FETCH (READ) ---
-        async function fetchRequests() {
-            try {
-                const response = await fetch(API_URL); 
-                if (!response.ok) throw new Error('Koneksi API Gagal');
-                const requests = await response.json();
-                
-                apiStatus.style.display = 'none'; 
-                dataLemburBody.innerHTML = '';
-                
-                if (requests.length === 0) {
-                    dataLemburBody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #888;">Belum ada pengajuan lembur.</td></tr>';
-                    return;
-                }
-
-                requests.forEach(req => {
-                    const row = dataLemburBody.insertRow();
-                    row.insertCell().textContent = req.id;
-                    row.insertCell().textContent = req.name;
-                    row.insertCell().textContent = req.date;
-                    row.insertCell().textContent = req.startTime;
-                    row.insertCell().textContent = req.endTime;
-                    row.insertCell().textContent = req.hours;
-                    
-                    const statusCell = row.insertCell();
-                    const statusSpan = document.createElement('span');
-                    statusSpan.textContent = req.status;
-                    statusSpan.className = 'status-' + req.status.toLowerCase();
-                    statusCell.appendChild(statusSpan);
-
-                    const aksiCell = row.insertCell();
-                    const deleteButton = document.createElement('button');
-                    deleteButton.textContent = 'Hapus';
-                    deleteButton.className = 'delete-btn';
-                    deleteButton.onclick = () => deleteRequest(req.id); 
-                    aksiCell.appendChild(deleteButton);
-                });
-
-            } catch (error) {
-                apiStatus.textContent = 'Gagal terhubung ke API. Pastikan server aktif dan URL sudah benar.';
-                apiStatus.style.display = 'block'; 
-                dataLemburBody.innerHTML = '<tr><td colspan="8" style="color:red; text-align:center;">Gagal memuat data.</td></tr>';
+        function getLocation() {
+            const hasilDiv = document.getElementById('hasil');
+            hasilDiv.innerHTML = 'Mencari lokasi...';
+            
+            // Cek apakah browser mendukung Geolocation API
+            if (navigator.geolocation) {
+                // Panggil fungsi getCurrentPosition
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                hasilDiv.innerHTML = '<span class="error">Geolocation tidak didukung oleh browser ini.</span>';
             }
         }
 
-        // --- CREATE (POST) ---
-        formPengajuan.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const name = document.getElementById('name').value.trim();
-            const date = document.getElementById('date').value;
-            const startTime = document.getElementById('startTime').value;
-            const endTime = document.getElementById('endTime').value;
+        function showPosition(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            // Membuat link Google Maps untuk memudahkan melihat lokasi
+            const mapLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
 
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, date, startTime, endTime }) 
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'Gagal mengajukan lembur.');
-                }
-                
-                formPengajuan.reset();
-                fetchRequests();
-            } catch (error) {
-                alert("Error Pengajuan: " + error.message);
-            }
-        });
-
-        // --- DELETE ---
-        async function deleteRequest(id) {
-            if (!confirm("Hapus pengajuan lembur ID " + id + "?")) return;
-            try {
-                const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-                if (!response.ok) throw new Error('Gagal menghapus data.');
-                
-                fetchRequests(); 
-            } catch (error) {
-                alert("Gagal menghapus: " + error.message);
-            }
+            document.getElementById('hasil').innerHTML = `
+                <p>✅ Lokasi Ditemukan:</p>
+                <p><strong>Latitude:</strong> ${lat}</p>
+                <p><strong>Longitude:</strong> ${lon}</p>
+                <p><a href="${mapLink}" target="_blank">Lihat di Google Maps</a></p>
+            `;
         }
 
-        document.addEventListener('DOMContentLoaded', fetchRequests);
+        function showError(error) {
+            const hasilDiv = document.getElementById('hasil');
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    hasilDiv.innerHTML = '<span class="error">❌ Pengguna menolak permintaan Geolocation.</span>';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    hasilDiv.innerHTML = '<span class="error">❌ Informasi lokasi tidak tersedia.</span>';
+                    break;
+                case error.TIMEOUT:
+                    hasilDiv.innerHTML = '<span class="error">❌ Permintaan waktu habis.</span>';
+                    break;
+                case error.UNKNOWN_ERROR:
+                    hasilDiv.innerHTML = '<span class="error">❌ Terjadi kesalahan yang tidak diketahui.</span>';
+                    break;
+            }
+        }
     </script>
 </body>
 </html>
